@@ -74,27 +74,59 @@ javascript:(function() {
         });
     }
 
+    function getReactInstance(element) {
+        for (let key in element) {
+            if (key.startsWith('__reactFiber$') || key.startsWith('__reactInternalInstance$')) {
+                return element[key];
+            }
+        }
+        return null;
+    }
+
+    function findStateNode() {
+        const candidates = [
+            document.querySelector("#app > div > div"),
+            document.querySelector("body div[id] > div > div"),
+            document.querySelector("div[class*='game']"),
+            document.querySelector("div[role='main']")
+        ];
+        for (let candidate of candidates) {
+            if (!candidate) continue;
+            let node = getReactInstance(candidate);
+            if (node) {
+                while (node && !node.stateNode) {
+                    node = node.return;
+                }
+                if (node && node.stateNode) return node.stateNode;
+            }
+        }
+        return null;
+    }
+
     function punishCheater() {
-        try {
-            const stateNode = Object.values(document.querySelector("#app>div>div"))[1].children[0]._owner.stateNode;
+        const stateNode = findStateNode();
+        if (stateNode && stateNode.props && stateNode.props.client) {
             stateNode.props.client.name = "HACKER";
             stateNode.setState({ client: { ...stateNode.props.client, name: "HACKER" } });
-        } catch (e) {}
-        try {
-            const stateNode = Object.values(document.querySelector("body div[id] > div > div"))[1].children[0]._owner.stateNode;
-            if (stateNode.state.gold !== undefined) stateNode.setState({ gold: 0, gold2: 0 });
-            if (stateNode.state.cash !== undefined) stateNode.setState({ cash: 0 });
-            if (stateNode.state.tokens !== undefined) stateNode.setState({ tokens: 0 });
-            if (stateNode.state.weight !== undefined) stateNode.setState({ weight: 0 });
-            if (stateNode.state.numBlooks !== undefined) stateNode.setState({ numBlooks: 0 });
-            if (stateNode.state.toys !== undefined) stateNode.setState({ toys: 0 });
+        }
+        if (stateNode && stateNode.state) {
+            const currencyFields = ['gold', 'gold2', 'cash', 'tokens', 'weight', 'numBlooks', 'toys'];
+            const newState = {};
+            currencyFields.forEach(field => {
+                if (stateNode.state[field] !== undefined) {
+                    newState[field] = 0;
+                }
+            });
+            if (Object.keys(newState).length > 0) {
+                stateNode.setState(newState);
+            }
             if (stateNode.props.liveGameController) {
                 stateNode.props.liveGameController.setVal({
-                    path: `c/${stateNode.props.client.name}`,
+                    path: `c/${stateNode.props.client.name || 'HACKER'}`,
                     val: { g: 0, cash: 0, tokens: 0, w: 0, bs: 0, t: 0 }
                 });
             }
-        } catch (e) {}
+        }
         createOverlay();
     }
 
